@@ -1,0 +1,350 @@
+GAMS 24.4.2  r51415 Released Mar 15, 2015 DEX-DEG x86 64bit/MacOS X                                                                                                                                                                    05/05/15 18:04:23 Page 1
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+C o m p i l a t i o n
+
+
+   1  SETS
+   2          h horas /h1, h2, h3, h4/
+   3          t ciudades /G, CATA, M, V, E, CAST/
+   4          s escenario /s1, s2, s3, s4/
+   5          alias(s,ss)
+   6           ;
+   7   
+   8  PARAMETERS
+   9           prob(s) probabilidad escenario s /s1 0.36, s2 0.24, s3 0.24, s4 0.16/
+  10   
+  11           d(h) demanda termica en la hora h [MW] /h1 1000, h2 1400, h3 2300, h4 1500/
+  12           al(t) termino lineal coste combustible de t /G 4, CATA 4, M 4, V 4, E 2, CAST 7/
+  13           b(t) termino fijo cost de comb de t  /G 50, CATA 30, M 30, V 25, E 80, CAST 70/
+  14           ca(t) coste de arranque de t  /G 10, CATA 20, M 10, V 15, E 20, CAST 15/
+  15           cp(t) coste de parada de t  /G 5, CATA 10, M 5, V 10, E 15, CAST 10/
+  16           pmax(t) potencia maxima de t  /G 400, CATA 500, M 700, V 400, E 1000, CAST 800/
+  17           pmin(t) potencia minima de t /G 100, CATA 150, M 150, V 50, E 450, CAST 200/
+  18           rs(t) rampa de subida de t  /G 200, CATA 300, M 500, V 300, E 600, CAST 400/
+  19           rb(t) rampa de bajada de t   /G 300, CATA 300, M 200, V 100, E 600, CAST 400/
+  20   
+  21           r(h) porcentaje de r
+  22           rsto(s,h) porcentaje de r estocastico
+  23  ;
+  24           r(h) = 0.2*d(h);
+  25   
+  26  TABLE dems(s,h)  demanda termica en la hora h escenario s [MW]
+  27                   h1      h2      h3      h4
+  28           s1      1000    1400    2760    1800
+  29           s2      0       0       0       1050
+  30           s3      0       0       1610    1800
+  31           s4      0       0       0       1050
+  32   
+  33  ;
+  34  rsto(s,h) = 0.2*dems(s,h);
+  35   
+  36  TABLE arbol(s,h)
+  37                   h1      h2      h3      h4
+  38           s1      1       1       1       1
+  39           s2      0       0       0       1
+  40           s3      0       0       1       1
+  41           s4      0       0       0       1
+  42  ;
+  43   
+  44  TABLE arbol1(s,h)
+  45                   h1      h2      h3      h4
+  46           s1      1       1       1       1
+  47           s2      1       1       1       2
+  48           s3      1       1       3       3
+  49           s4      1       1       3       4
+  50  ;
+  51   
+  52  VARIABLES
+  53  PS(t,h,s) potencia t en h y s
+GAMS 24.4.2  r51415 Released Mar 15, 2015 DEX-DEG x86 64bit/MacOS X                                                                                                                                                                    05/05/15 18:04:23 Page 2
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+C o m p i l a t i o n
+
+
+  54  AS(t,h,s) acoplamiento t en h y s
+  55  ARS(t,h,s) arranque t en h y s
+  56  *PR(t,h,s) parade t en h y s
+  57  Coste Coste total
+  58  ;
+  59  positive variable PS
+  60  binary variable AS, ARS
+  61  *binary variable PR
+  62  ;
+  63   
+  64  EQUATIONS
+  65  FOBJECTIVO restriccion de la funcion objectivo
+  66  maxprod maximo de producion
+  67  rampasub rampa subida
+  68  rampabaja rampa bajada
+  69  reserva restircion de la reserva
+  70  demanda
+  71  minpot la potencia debe ser mas que la potencia minima
+  72  *rel1  relacion entre AR y A
+  73  *rel2   relacion entre PR y A
+  74  ;
+  75   
+  76  *FOBJECTIVO.. Coste =E= SUM((t,h), al(t)*P(t,h) + b(t)*A(t,h)+ ca(t)*AR(t,h) + cp(t)*PR(t,h));
+  77  FOBJECTIVO.. Coste =E= SUM((t,h,s,ss)$(ord(ss) = arbol1(s,h)), prob(s)*(al(t)*PS(t,h,ss) + b(t)*AS(t,h,ss) + ca(t)*ARS(t,h,ss) + cp(t)*(ARS(t,h,ss) + AS(t,h-1,ss) -AS(t,h,ss))));
+  78   
+  79  demanda(h,s)$(ord(s) = arbol1(s,h)).. SUM(t,PS(t,h,s)) =E= dems(s,h);
+  80  reserva(h,s)$(ord(s) = arbol1(s,h)).. SUM(t, pmax(t)*AS(t,h,s)-PS(t,h,s)) =G= rsto(s,h);
+  81  maxprod(t,h,s)$(ord(s) = arbol1(s,h)).. PS(t,h,s) =L= pmax(t)*AS(t,h,s);
+  82  minpot(t,h,s)$(ord(s) = arbol1(s,h)).. PS(t,h,s) =G= pmin(t)*AS(t,h,s);
+  83  rampasub(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PS(t,h,s) - PS(t,h-1,ss) =L= rs(t);
+  84  rampabaja(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PS(t,h-1,ss) - PS(t,h,s) =L= rb(t);
+  85   
+  86  *Example;
+  87  *rest(h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)) .. ;
+  88   
+  89   
+  90  *maxprod(t,h).. PS(t,h) =L= pmax(t)*AS(t,h);
+  91  *rampasub(t,h).. PS(t,h) - PS(t,h-1) =L= rs(t);
+  92  *rampabaja(t,h).. PS(t,h-1) - PS(t,h) =L= rb(t);
+  93  *minpot(t,h).. PS(t,h) =G= pmin(t)*AS(t,h);
+  94  *
+  95  *reserva(h).. sum(t, pmax(t)*A(t,h) - P(t,h)) =G= r(h);
+  96  *demanda(h).. sum(t, P(t,h)) =E= d(h);
+  97  *
+  98  *rel1(t,h).. AR(t,h) =G= A(t,h) - A(t,h-1);
+  99  *rel2(t,h).. PR(t,h) =G= A(t,h-1) - A(t,h);
+ 100   
+ 101  option optcr = 0;
+ 102  model pepito /all/;
+ 103  solve pepito minimize Coste using MIP;
+
+
+COMPILATION TIME     =        0.001 SECONDS      3 MB  24.4.2 r51415 DEX-DEG
+GAMS 24.4.2  r51415 Released Mar 15, 2015 DEX-DEG x86 64bit/MacOS X                                                                                                                                                                    05/05/15 18:04:23 Page 3
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Equation Listing    SOLVE pepito Using MIP From line 103
+
+
+---- FOBJECTIVO  =E=  restriccion de la funcion objectivo
+
+FOBJECTIVO..  - 4*PS(G,h1,s1) - 4*PS(G,h2,s1) - 2.4*PS(G,h3,s1) - 1.6*PS(G,h3,s3) - 1.44*PS(G,h4,s1) - 0.96*PS(G,h4,s2) - 0.96*PS(G,h4,s3) - 0.64*PS(G,h4,s4) - 4*PS(CATA,h1,s1) - 4*PS(CATA,h2,s1) - 2.4*PS(CATA,h3,s1) - 1.6*PS(CATA,h3,s3)
+     
+      - 1.44*PS(CATA,h4,s1) - 0.96*PS(CATA,h4,s2) - 0.96*PS(CATA,h4,s3) - 0.64*PS(CATA,h4,s4) - 4*PS(M,h1,s1) - 4*PS(M,h2,s1) - 2.4*PS(M,h3,s1) - 1.6*PS(M,h3,s3) - 1.44*PS(M,h4,s1) - 0.96*PS(M,h4,s2) - 0.96*PS(M,h4,s3) - 0.64*PS(M,h4,s4) - 4*PS(V,h1,s1)
+     
+      - 4*PS(V,h2,s1) - 2.4*PS(V,h3,s1) - 1.6*PS(V,h3,s3) - 1.44*PS(V,h4,s1) - 0.96*PS(V,h4,s2) - 0.96*PS(V,h4,s3) - 0.64*PS(V,h4,s4) - 2*PS(E,h1,s1) - 2*PS(E,h2,s1) - 1.2*PS(E,h3,s1) - 0.8*PS(E,h3,s3) - 0.72*PS(E,h4,s1) - 0.48*PS(E,h4,s2)
+     
+      - 0.48*PS(E,h4,s3) - 0.32*PS(E,h4,s4) - 7*PS(CAST,h1,s1) - 7*PS(CAST,h2,s1) - 4.2*PS(CAST,h3,s1) - 2.8*PS(CAST,h3,s3) - 2.52*PS(CAST,h4,s1) - 1.68*PS(CAST,h4,s2) - 1.68*PS(CAST,h4,s3) - 1.12*PS(CAST,h4,s4) - 50*AS(G,h1,s1) - 48*AS(G,h2,s1)
+     
+      - 2*AS(G,h2,s3) - 28.8*AS(G,h3,s1) - 1.2*AS(G,h3,s2) - 19.2*AS(G,h3,s3) - 0.8*AS(G,h3,s4) - 16.2*AS(G,h4,s1) - 10.8*AS(G,h4,s2) - 10.8*AS(G,h4,s3) - 7.2*AS(G,h4,s4) - 30*AS(CATA,h1,s1) - 26*AS(CATA,h2,s1) - 4*AS(CATA,h2,s3) - 15.6*AS(CATA,h3,s1)
+     
+      - 2.4*AS(CATA,h3,s2) - 10.4*AS(CATA,h3,s3) - 1.6*AS(CATA,h3,s4) - 7.2*AS(CATA,h4,s1) - 4.8*AS(CATA,h4,s2) - 4.8*AS(CATA,h4,s3) - 3.2*AS(CATA,h4,s4) - 30*AS(M,h1,s1) - 28*AS(M,h2,s1) - 2*AS(M,h2,s3) - 16.8*AS(M,h3,s1) - 1.2*AS(M,h3,s2)
+     
+      - 11.2*AS(M,h3,s3) - 0.8*AS(M,h3,s4) - 9*AS(M,h4,s1) - 6*AS(M,h4,s2) - 6*AS(M,h4,s3) - 4*AS(M,h4,s4) - 25*AS(V,h1,s1) - 21*AS(V,h2,s1) - 4*AS(V,h2,s3) - 12.6*AS(V,h3,s1) - 2.4*AS(V,h3,s2) - 8.4*AS(V,h3,s3) - 1.6*AS(V,h3,s4) - 5.4*AS(V,h4,s1)
+     
+      - 3.6*AS(V,h4,s2) - 3.6*AS(V,h4,s3) - 2.4*AS(V,h4,s4) - 80*AS(E,h1,s1) - 74*AS(E,h2,s1) - 6*AS(E,h2,s3) - 44.4*AS(E,h3,s1) - 3.6*AS(E,h3,s2) - 29.6*AS(E,h3,s3) - 2.4*AS(E,h3,s4) - 23.4*AS(E,h4,s1) - 15.6*AS(E,h4,s2) - 15.6*AS(E,h4,s3)
+     
+      - 10.4*AS(E,h4,s4) - 70*AS(CAST,h1,s1) - 66*AS(CAST,h2,s1) - 4*AS(CAST,h2,s3) - 39.6*AS(CAST,h3,s1) - 2.4*AS(CAST,h3,s2) - 26.4*AS(CAST,h3,s3) - 1.6*AS(CAST,h3,s4) - 21.6*AS(CAST,h4,s1) - 14.4*AS(CAST,h4,s2) - 14.4*AS(CAST,h4,s3)
+     
+      - 9.6*AS(CAST,h4,s4) - 15*ARS(G,h1,s1) - 15*ARS(G,h2,s1) - 9*ARS(G,h3,s1) - 6*ARS(G,h3,s3) - 5.4*ARS(G,h4,s1) - 3.6*ARS(G,h4,s2) - 3.6*ARS(G,h4,s3) - 2.4*ARS(G,h4,s4) - 30*ARS(CATA,h1,s1) - 30*ARS(CATA,h2,s1) - 18*ARS(CATA,h3,s1)
+     
+      - 12*ARS(CATA,h3,s3) - 10.8*ARS(CATA,h4,s1) - 7.2*ARS(CATA,h4,s2) - 7.2*ARS(CATA,h4,s3) - 4.8*ARS(CATA,h4,s4) - 15*ARS(M,h1,s1) - 15*ARS(M,h2,s1) - 9*ARS(M,h3,s1) - 6*ARS(M,h3,s3) - 5.4*ARS(M,h4,s1) - 3.6*ARS(M,h4,s2) - 3.6*ARS(M,h4,s3)
+     
+      - 2.4*ARS(M,h4,s4) - 25*ARS(V,h1,s1) - 25*ARS(V,h2,s1) - 15*ARS(V,h3,s1) - 10*ARS(V,h3,s3) - 9*ARS(V,h4,s1) - 6*ARS(V,h4,s2) - 6*ARS(V,h4,s3) - 4*ARS(V,h4,s4) - 35*ARS(E,h1,s1) - 35*ARS(E,h2,s1) - 21*ARS(E,h3,s1) - 14*ARS(E,h3,s3)
+     
+      - 12.6*ARS(E,h4,s1) - 8.4*ARS(E,h4,s2) - 8.4*ARS(E,h4,s3) - 5.6*ARS(E,h4,s4) - 25*ARS(CAST,h1,s1) - 25*ARS(CAST,h2,s1) - 15*ARS(CAST,h3,s1) - 10*ARS(CAST,h3,s3) - 9*ARS(CAST,h4,s1) - 6*ARS(CAST,h4,s2) - 6*ARS(CAST,h4,s3) - 4*ARS(CAST,h4,s4) + Coste
+      =E= 0 ; (LHS = 0)
+     
+
+---- maxprod  =L=  maximo de producion
+
+maxprod(G,h1,s1)..  PS(G,h1,s1) - 400*AS(G,h1,s1) =L= 0 ; (LHS = 0)
+     
+maxprod(G,h2,s1)..  PS(G,h2,s1) - 400*AS(G,h2,s1) =L= 0 ; (LHS = 0)
+     
+maxprod(G,h3,s1)..  PS(G,h3,s1) - 400*AS(G,h3,s1) =L= 0 ; (LHS = 0)
+     
+REMAINING 45 ENTRIES SKIPPED
+
+
+---- rampasub  =L=  rampa subida
+
+rampasub(G,h2,s1,s1)..  - PS(G,h1,s1) + PS(G,h2,s1) =L= 200 ; (LHS = 0)
+     
+rampasub(G,h3,s1,s1)..  - PS(G,h2,s1) + PS(G,h3,s1) =L= 200 ; (LHS = 0)
+     
+rampasub(G,h3,s3,s1)..  - PS(G,h2,s1) + PS(G,h3,s3) =L= 200 ; (LHS = 0)
+     
+REMAINING 39 ENTRIES SKIPPED
+
+GAMS 24.4.2  r51415 Released Mar 15, 2015 DEX-DEG x86 64bit/MacOS X                                                                                                                                                                    05/05/15 18:04:23 Page 4
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Equation Listing    SOLVE pepito Using MIP From line 103
+
+
+---- rampabaja  =L=  rampa bajada
+
+rampabaja(G,h2,s1,s1)..  PS(G,h1,s1) - PS(G,h2,s1) =L= 300 ; (LHS = 0)
+     
+rampabaja(G,h3,s1,s1)..  PS(G,h2,s1) - PS(G,h3,s1) =L= 300 ; (LHS = 0)
+     
+rampabaja(G,h3,s3,s1)..  PS(G,h2,s1) - PS(G,h3,s3) =L= 300 ; (LHS = 0)
+     
+REMAINING 39 ENTRIES SKIPPED
+
+
+---- reserva  =G=  restircion de la reserva
+
+reserva(h1,s1)..  - PS(G,h1,s1) - PS(CATA,h1,s1) - PS(M,h1,s1) - PS(V,h1,s1) - PS(E,h1,s1) - PS(CAST,h1,s1) + 400*AS(G,h1,s1) + 500*AS(CATA,h1,s1) + 700*AS(M,h1,s1) + 400*AS(V,h1,s1) + 1000*AS(E,h1,s1) + 800*AS(CAST,h1,s1) =G= 200 ;
+     
+      (LHS = 0, INFES = 200 ****)
+     
+reserva(h2,s1)..  - PS(G,h2,s1) - PS(CATA,h2,s1) - PS(M,h2,s1) - PS(V,h2,s1) - PS(E,h2,s1) - PS(CAST,h2,s1) + 400*AS(G,h2,s1) + 500*AS(CATA,h2,s1) + 700*AS(M,h2,s1) + 400*AS(V,h2,s1) + 1000*AS(E,h2,s1) + 800*AS(CAST,h2,s1) =G= 280 ;
+     
+      (LHS = 0, INFES = 280 ****)
+     
+reserva(h3,s1)..  - PS(G,h3,s1) - PS(CATA,h3,s1) - PS(M,h3,s1) - PS(V,h3,s1) - PS(E,h3,s1) - PS(CAST,h3,s1) + 400*AS(G,h3,s1) + 500*AS(CATA,h3,s1) + 700*AS(M,h3,s1) + 400*AS(V,h3,s1) + 1000*AS(E,h3,s1) + 800*AS(CAST,h3,s1) =G= 552 ;
+     
+      (LHS = 0, INFES = 552 ****)
+     
+REMAINING 5 ENTRIES SKIPPED
+
+
+---- demanda  =E=  
+
+demanda(h1,s1)..  PS(G,h1,s1) + PS(CATA,h1,s1) + PS(M,h1,s1) + PS(V,h1,s1) + PS(E,h1,s1) + PS(CAST,h1,s1) =E= 1000 ; (LHS = 0, INFES = 1000 ****)
+     
+demanda(h2,s1)..  PS(G,h2,s1) + PS(CATA,h2,s1) + PS(M,h2,s1) + PS(V,h2,s1) + PS(E,h2,s1) + PS(CAST,h2,s1) =E= 1400 ; (LHS = 0, INFES = 1400 ****)
+     
+demanda(h3,s1)..  PS(G,h3,s1) + PS(CATA,h3,s1) + PS(M,h3,s1) + PS(V,h3,s1) + PS(E,h3,s1) + PS(CAST,h3,s1) =E= 2760 ; (LHS = 0, INFES = 2760 ****)
+     
+REMAINING 5 ENTRIES SKIPPED
+
+
+---- minpot  =G=  la potencia debe ser mas que la potencia minima
+
+minpot(G,h1,s1)..  PS(G,h1,s1) - 100*AS(G,h1,s1) =G= 0 ; (LHS = 0)
+     
+minpot(G,h2,s1)..  PS(G,h2,s1) - 100*AS(G,h2,s1) =G= 0 ; (LHS = 0)
+     
+minpot(G,h3,s1)..  PS(G,h3,s1) - 100*AS(G,h3,s1) =G= 0 ; (LHS = 0)
+     
+REMAINING 45 ENTRIES SKIPPED
+
+GAMS 24.4.2  r51415 Released Mar 15, 2015 DEX-DEG x86 64bit/MacOS X                                                                                                                                                                    05/05/15 18:04:23 Page 5
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Column Listing      SOLVE pepito Using MIP From line 103
+
+
+---- PS  potencia t en h y s
+
+PS(G,h1,s1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -4       FOBJECTIVO
+        1       maxprod(G,h1,s1)
+       -1       rampasub(G,h2,s1,s1)
+        1       rampabaja(G,h2,s1,s1)
+       -1       reserva(h1,s1)
+        1       demanda(h1,s1)
+        1       minpot(G,h1,s1)
+
+PS(G,h2,s1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -4       FOBJECTIVO
+        1       maxprod(G,h2,s1)
+        1       rampasub(G,h2,s1,s1)
+       -1       rampasub(G,h3,s1,s1)
+       -1       rampasub(G,h3,s3,s1)
+       -1       rampabaja(G,h2,s1,s1)
+        1       rampabaja(G,h3,s1,s1)
+        1       rampabaja(G,h3,s3,s1)
+       -1       reserva(h2,s1)
+        1       demanda(h2,s1)
+        1       minpot(G,h2,s1)
+
+PS(G,h3,s1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -2.4     FOBJECTIVO
+        1       maxprod(G,h3,s1)
+        1       rampasub(G,h3,s1,s1)
+       -1       rampasub(G,h4,s1,s1)
+       -1       rampasub(G,h4,s2,s1)
+       -1       rampabaja(G,h3,s1,s1)
+        1       rampabaja(G,h4,s1,s1)
+        1       rampabaja(G,h4,s2,s1)
+       -1       reserva(h3,s1)
+        1       demanda(h3,s1)
+        1       minpot(G,h3,s1)
+
+REMAINING 45 ENTRIES SKIPPED
+
+---- AS  acoplamiento t en h y s
+
+AS(G,h1,s1)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+      -50       FOBJECTIVO
+     -400       maxprod(G,h1,s1)
+      400       reserva(h1,s1)
+     -100       minpot(G,h1,s1)
+
+AS(G,h2,s1)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+GAMS 24.4.2  r51415 Released Mar 15, 2015 DEX-DEG x86 64bit/MacOS X                                                                                                                                                                    05/05/15 18:04:23 Page 6
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Column Listing      SOLVE pepito Using MIP From line 103
+
+
+     AS  acoplamiento t en h y s
+
+      -48       FOBJECTIVO
+     -400       maxprod(G,h2,s1)
+      400       reserva(h2,s1)
+     -100       minpot(G,h2,s1)
+
+AS(G,h2,s3)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+       -2       FOBJECTIVO
+
+REMAINING 63 ENTRIES SKIPPED
+
+---- ARS  arranque t en h y s
+
+ARS(G,h1,s1)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+      -15       FOBJECTIVO
+
+ARS(G,h2,s1)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+      -15       FOBJECTIVO
+
+ARS(G,h3,s1)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+       -9       FOBJECTIVO
+
+REMAINING 45 ENTRIES SKIPPED
+
+---- Coste  Coste total
+
+Coste
+                (.LO, .L, .UP, .M = -INF, 0, +INF, 0)
+        1       FOBJECTIVO
+
+GAMS 24.4.2  r51415 Released Mar 15, 2015 DEX-DEG x86 64bit/MacOS X                                                                                                                                                                    05/05/15 18:04:23 Page 7
+G e n e r a l   A l g e b r a i c   M o d e l i n g   S y s t e m
+Model Statistics    SOLVE pepito Using MIP From line 103
+
+
+MODEL STATISTICS
+
+BLOCKS OF EQUATIONS           7     SINGLE EQUATIONS          197
+BLOCKS OF VARIABLES           4     SINGLE VARIABLES          163
+NON ZERO ELEMENTS           667     DISCRETE VARIABLES        114
+
+
+
+**** THE MODEL EXCEEDS THE DEMO LIMITS
+**** MAX MATRIX ROWS          300
+**** MAX MATRIX COLUMNS       300
+**** MAX NON ZERO ELEMENTS   2000
+**** MAX NON LINEAR N-Z      1000
+**** MAX DISCRETE VARIABLES    50
+**** Terminated due to a licensing error
+
+     GAMS Development Corporation, Washington, DC   G871201/0000CA-ANY
+     Free Demo,  202-342-0180,  sales@gams.com,  www.gams.com         
+     10505557000S                                                   00
+     01234567000000                                                   
+     DC0000       Ref: Generated by Base            A Demo            

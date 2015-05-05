@@ -17,6 +17,7 @@ PARAMETERS
          pmin(t) potencia minima de t /G 100, CATA 150, M 150, V 50, E 450, CAST 200/
          rs(t) rampa de subida de t  /G 200, CATA 300, M 500, V 300, E 600, CAST 400/
          rb(t) rampa de bajada de t   /G 300, CATA 300, M 200, V 100, E 600, CAST 400/
+
          r(h) porcentaje de r
          rsto(s,h) porcentaje de r estocastico
 ;
@@ -49,14 +50,14 @@ TABLE arbol1(s,h)
 ;
 
 VARIABLES
-P(t,h,s) potencia t en h y s
-A(t,h,s) acoplamiento t en h y s
-AR(t,h,s) arranque t en h y s
+PS(t,h,s) potencia t en h y s
+AS(t,h,s) acoplamiento t en h y s
+ARS(t,h,s) arranque t en h y s
 *PR(t,h,s) parade t en h y s
 Coste Coste total
 ;
-positive variable P
-binary variable A, AR
+positive variable PS
+binary variable AS, ARS
 *binary variable PR
 ;
 
@@ -73,19 +74,27 @@ minpot la potencia debe ser mas que la potencia minima
 ;
 
 *FOBJECTIVO.. Coste =E= SUM((t,h), al(t)*P(t,h) + b(t)*A(t,h)+ ca(t)*AR(t,h) + cp(t)*PR(t,h));
-FOBJECTIVO.. Coste =E= SUM((t,h,s,ss)$(ord(ss) = arbol1(s,h)), prob(s)*(al(t)*P(t,h,ss) + b(t)*A(t,h,ss)+ ca(t)*AR(t,h,ss) + cp(t)*(AR(t,h,ss) + A(t,h-1,ss) -A(t,h,ss))));
-demanda(h,s)$(ord(s) = arbol1(s,h)).. SUM(t,P(t,h,s)) =E= dems(s,h);
-reserva(h,s)$(ord(s) = arbol1(s,h)).. SUM(t, pmax(t)*A(t,h,s)-P(t,h,s)) =G= rsto(s,h);
+FOBJECTIVO.. Coste =E= SUM((t,h,s,ss)$(ord(ss) = arbol1(s,h)), prob(s)*(al(t)*PS(t,h,ss) + b(t)*AS(t,h,ss) + ca(t)*ARS(t,h,ss) + cp(t)*(ARS(t,h,ss) + AS(t,h-1,ss) -AS(t,h,ss))));
 
-rest(h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbols(s,h-1)) .. ;
+demanda(h,s)$(ord(s) = arbol1(s,h)).. SUM(t,PS(t,h,s)) =E= dems(s,h);
+reserva(h,s)$(ord(s) = arbol1(s,h)).. SUM(t, pmax(t)*AS(t,h,s)-PS(t,h,s)) =G= rsto(s,h);
+maxprod(t,h,s)$(ord(s) = arbol1(s,h)).. PS(t,h,s) =L= pmax(t)*AS(t,h,s);
+minpot(t,h,s)$(ord(s) = arbol1(s,h)).. PS(t,h,s) =G= pmin(t)*AS(t,h,s);
+rampasub(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PS(t,h,s) - PS(t,h-1,ss) =L= rs(t);
+rampabaja(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PS(t,h-1,ss) - PS(t,h,s) =L= rb(t);
+
+*Example;
+*rest(h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)) .. ;
 
 
-maxprod(t,h).. P(t,h) =L= pmax(t)*A(t,h);
-rampasub(t,h).. P(t,h) - P(t,h-1) =L= rs(t);
-rampabaja(t,h).. P(t,h-1) - P(t,h) =L= rb(t);
+*maxprod(t,h).. PS(t,h) =L= pmax(t)*AS(t,h);
+*rampasub(t,h).. PS(t,h) - PS(t,h-1) =L= rs(t);
+*rampabaja(t,h).. PS(t,h-1) - PS(t,h) =L= rb(t);
+*minpot(t,h).. PS(t,h) =G= pmin(t)*AS(t,h);
+*
 *reserva(h).. sum(t, pmax(t)*A(t,h) - P(t,h)) =G= r(h);
 *demanda(h).. sum(t, P(t,h)) =E= d(h);
-minpot(t,h).. P(t,h) =G= pmin(t)*A(t,h);
+*
 *rel1(t,h).. AR(t,h) =G= A(t,h) - A(t,h-1);
 *rel2(t,h).. PR(t,h) =G= A(t,h-1) - A(t,h);
 
