@@ -32,13 +32,15 @@ VARIABLES
 P(t,h) potencia t en h
 A(t,h) acoplamiento t en h
 AR(t,h) arranque t en h
-*PR(t,h) parade t en h
+PR(t,h) parade t en h
 Coste Coste total
 ;
-positive variable P
+positive variable P, PR
 binary variable A, AR
 *binary variable PR
 ;
+
+PR.up(t,h)=1
 
 EQUATIONS
 FOBJECTIVO restriccion de la funcion objectivo
@@ -50,24 +52,31 @@ demanda
 minpot la potencia debe ser mas que la potencia minima
 *rel1  relacion entre AR y A
 *rel2   relacion entre PR y A
+relacion 
+rel1SS
+rampasubSS
 ;
 
-*FOBJECTIVO.. Coste =E= SUM((t,h), al(t)*P(t,h) + b(t)*A(t,h)+ ca(t)*AR(t,h) + cp(t)*PR(t,h));
-FOBJECTIVO.. Coste =E= SUM((t,h), al(t)*P(t,h) + b(t)*A(t,h)+ ca(t)*AR(t,h) + cp(t)*(AR(t,h) + A(t,h-1) -A(t,h)));
+FOBJECTIVO.. Coste =E= SUM((t,h), al(t)*P(t,h) + b(t)*A(t,h)+ ca(t)*AR(t,h) + cp(t)*PR(t,h));
+*FOBJECTIVO.. Coste =E= SUM((t,h), al(t)*P(t,h) + b(t)*A(t,h)+ ca(t)*AR(t,h) + cp(t)*(AR(t,h) + A(t,h-1) -A(t,h)));
 maxprod(t,h).. P(t,h) =L= pmax(t)*A(t,h);
-rampasub(t,h).. P(t,h) - P(t,h-1) =L= rs(t);
+rampasub(t,h)$(ord(h)>1).. P(t,h) - P(t,h-1) =L= rs(t);
+rampasubSS(t,h)$(ord(h)=1).. P(t,h) =L= rs(t);
 rampabaja(t,h).. P(t,h-1) - P(t,h) =L= rb(t);
 reserva(h).. sum(t, pmax(t)*A(t,h) - P(t,h)) =G= r(h);
 demanda(h).. sum(t, P(t,h)) =E= d(h);
 minpot(t,h).. P(t,h) =G= pmin(t)*A(t,h);
+relacion(t,h)$(ord(h)>1).. AR(t,h) - PR(t,h) =E= A(t,h) - A(t,h-1);
+rel1SS(t,h)$(ord(h)=1).. AR(t,h) =E= A(t,h);
 *rel1(t,h).. AR(t,h) =G= A(t,h) - A(t,h-1);
 *rel2(t,h).. PR(t,h) =G= A(t,h-1) - A(t,h);
+
 
 option optcr = 0;
 
 * cada escenario determinista por separado
 model DETERM /all/;
-LOOP (s, d(h) = dems(s,h) ;
+LOOP (s, d(h) = dems(s,h); r(h) =0.2*dems(s,h) ;
          solve DETERM minimize Coste using MIP;
 );
 
