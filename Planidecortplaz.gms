@@ -1,6 +1,7 @@
 SETS
         h horas /h1, h2, h3, h4/
         t ciudades /G, CATA, M, V, E, CAST/
+        s escenarios de demanda /s1, s2, s3, s4/
          ;
 
 PARAMETERS
@@ -15,10 +16,17 @@ PARAMETERS
          rs(t) rampa de subida de t  /G 200, CATA 300, M 500, V 300, E 600, CAST 400/
          rb(t) rampa de bajada de t   /G 300, CATA 300, M 200, V 100, E 600, CAST 400/
          r(h) porcentaje de r
+         PROB(s) probabilidad de cada escenario /s1 0.36, s2 0.24, s3 0.24, s4 0.16/
 ;
          r(h) = 0.2*d(h);
 
-
+TABLE dems(s,h)  demanda termica en la hora h escenario s [MW]
+                 h1      h2      h3      h4
+         s1      1000    1400    2760    1800
+         s2      1000    1400    2760    1050
+         s3      1000    1400    1610    1800
+         s4      1000    1400    1610    1050
+;
 
 VARIABLES
 P(t,h) potencia t en h
@@ -56,5 +64,13 @@ minpot(t,h).. P(t,h) =G= pmin(t)*A(t,h);
 *rel2(t,h).. PR(t,h) =G= A(t,h-1) - A(t,h);
 
 option optcr = 0;
-model pepito /all/;
-solve pepito minimize Coste using MIP;
+
+* cada escenario determinista por separado
+model DETERM /all/;
+LOOP (s, d(h) = dems(s,h) ;
+         solve DETERM minimize Coste using MIP;
+);
+
+* escenario de demanda media:
+d(h) = SUM(s, PROB(s) * dems(s,h)) ;
+SOLVE DETERM MINIMIZING COSTE USING MIP;
