@@ -53,51 +53,51 @@ VARIABLES
 PS(t,h,s) potencia t en h y s
 AS(t,h,s) acoplamiento t en h y s
 ARS(t,h,s) arranque t en h y s
-*PR(t,h,s) parade t en h y s
+PRS(t,h,s) parade t en h y s
 Coste Coste total
 ;
-positive variable PS
-binary variable AS, ARS
-*binary variable PR
+positive variable PS, ARS, PRS
+binary variable AS
 ;
 
 EQUATIONS
-FOBJECTIVO restriccion de la funcion objectivo
-maxprod maximo de producion
-rampasub rampa subida
-rampabaja rampa bajada
-reserva restircion de la reserva
-demanda
-minpot la potencia debe ser mas que la potencia minima
-*rel1  relacion entre AR y A
-*rel2   relacion entre PR y A
+FOBJECTIVOS restriccion de la funcion objectivo
+maxprodS maximo de producion
+rampasubS rampa subida
+rampabajaS rampa bajada
+reservaS restircion de la reserva
+demandaS
+minpotS la potencia debe ser mas que la potencia minima
+rel1S  relacion entre ARS y AS
+rel2S   relacion entre PRS y AS
 ;
 
+FOBJECTIVOS.. Coste =E= SUM((t,h,s,ss)$(ord(ss) = arbol1(s,h)), prob(s)*(al(t)*PS(t,h,ss) + b(t)*AS(t,h,ss) + ca(t)*ARS(t,h,ss) + cp(t)*PRS(t,h,ss)));
+
+demandaS(h,s)$(ord(s) = arbol1(s,h)).. SUM(t,PS(t,h,s)) =E= dems(s,h);
+reservaS(h,s)$(ord(s) = arbol1(s,h)).. SUM(t, pmax(t)*AS(t,h,s)-PS(t,h,s)) =G= rsto(s,h);
+maxprodS(t,h,s)$(ord(s) = arbol1(s,h)).. PS(t,h,s) =L= pmax(t)*AS(t,h,s);
+minpotS(t,h,s)$(ord(s) = arbol1(s,h)).. PS(t,h,s) =G= pmin(t)*AS(t,h,s);
+rampasubS(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PS(t,h,s) - PS(t,h-1,ss) =L= rs(t);
+rampabajaS(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PS(t,h-1,ss) - PS(t,h,s) =L= rb(t);
+rel1S(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. ARS(t,h,s) =G= AS(t,h,s)-AS(t,h-1,ss);
+rel2S(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PRS(t,h,s) =G= AS(t,h-1,ss)-AS(t,h,s);
+
 *FOBJECTIVO.. Coste =E= SUM((t,h), al(t)*P(t,h) + b(t)*A(t,h)+ ca(t)*AR(t,h) + cp(t)*PR(t,h));
-FOBJECTIVO.. Coste =E= SUM((t,h,s,ss)$(ord(ss) = arbol1(s,h)), prob(s)*(al(t)*PS(t,h,ss) + b(t)*AS(t,h,ss) + ca(t)*ARS(t,h,ss) + cp(t)*(ARS(t,h,ss) + AS(t,h-1,ss) -AS(t,h,ss))));
-
-demanda(h,s)$(ord(s) = arbol1(s,h)).. SUM(t,PS(t,h,s)) =E= dems(s,h);
-reserva(h,s)$(ord(s) = arbol1(s,h)).. SUM(t, pmax(t)*AS(t,h,s)-PS(t,h,s)) =G= rsto(s,h);
-maxprod(t,h,s)$(ord(s) = arbol1(s,h)).. PS(t,h,s) =L= pmax(t)*AS(t,h,s);
-minpot(t,h,s)$(ord(s) = arbol1(s,h)).. PS(t,h,s) =G= pmin(t)*AS(t,h,s);
-rampasub(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PS(t,h,s) - PS(t,h-1,ss) =L= rs(t);
-rampabaja(t,h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)).. PS(t,h-1,ss) - PS(t,h,s) =L= rb(t);
-
+*FOBJECTIVO.. Coste =E= SUM((t,h,s,ss)$(ord(ss) = arbol1(s,h)), prob(s)*(al(t)*PS(t,h,ss) + b(t)*AS(t,h,ss) + ca(t)*ARS(t,h,ss) + cp(t)*(ARS(t,h,ss) + AS(t,h-1,ss) -AS(t,h,ss))));
 *Example;
 *rest(h,s,ss)$(ord(s) = arbol1(s,h) and ord(ss) = arbol1(s,h-1)) .. ;
-
-
 *maxprod(t,h).. PS(t,h) =L= pmax(t)*AS(t,h);
 *rampasub(t,h).. PS(t,h) - PS(t,h-1) =L= rs(t);
 *rampabaja(t,h).. PS(t,h-1) - PS(t,h) =L= rb(t);
 *minpot(t,h).. PS(t,h) =G= pmin(t)*AS(t,h);
-*
 *reserva(h).. sum(t, pmax(t)*A(t,h) - P(t,h)) =G= r(h);
 *demanda(h).. sum(t, P(t,h)) =E= d(h);
-*
 *rel1(t,h).. AR(t,h) =G= A(t,h) - A(t,h-1);
 *rel2(t,h).. PR(t,h) =G= A(t,h-1) - A(t,h);
 
 option optcr = 0;
-model pepito /all/;
-solve pepito minimize Coste using MIP;
+*model ESTOC /FOBJECTIVOS, demandaS, reservaS, maxprodS, minpotS, rampasubS, rampabajaS, rel1S, rel2S/;
+model ESTOC /all/;
+* problema estocástico:
+solve ESTOC minimize Coste using MIP;
